@@ -1,4 +1,21 @@
-## Welcome to GitHub Pages
+## Data Science Portfolio by Kevin Li
+
+This portfolio is a compilation of notebooks which I created for data analysis or for exploration of machine learning algorithms. A separate category is for separate projects.
+
+### Stand-alone projects
+
+
+
+### Kaggle Competitions
+
+
+
+### Kaggle Kernels
+
+
+### Data Exploration and Analysis
+
+### Clustering
 
 You can use the [editor on GitHub](https://github.com/efawe/efawe.github.io/edit/master/README.md) to maintain and preview the content for your website in Markdown files.
 
