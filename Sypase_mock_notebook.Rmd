@@ -1,0 +1,271 @@
+---
+title: "Sypase Mock - R"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+  word_document: default
+---
+Tasks:
+
+1) Characterize this population based on genetic background
+
+2) Pick one subset of this population and derive a clinically relevant implication that this dataset can illustrate
+
+3) Share your methodology to generate the insights in #1 and #2 (please include an example of the script(s) used)
+
+4) Share the limitations of this data set
+
+5) Propose areas for further exploration and identify additional data points needed to enable them
+
+
+4 Files: 
+
+- Biomarkers
+
+- ICDS
+
+- Patients
+
+- Therapies
+
+**Input data/Packages**
+```{r warning=FALSE}
+# Packages
+library(tidyverse)
+library(ggplot2)
+library(stats)
+library(plyr)
+
+# Input of the files 
+biomarkers <- read.csv("C:/Users/Kevin/Dropbox/Syapse/biomarkers.csv")
+icds <- read.csv("C:/Users/Kevin/Dropbox/Syapse/icds.csv")
+patients <- read.csv("C:/Users/Kevin/Dropbox/Syapse/patients.csv")
+therapies <- read.csv("C:/Users/Kevin/Dropbox/Syapse/therapies.csv")
+
+# Setting working directories 
+path <- "C:/Users/Kevin/Dropbox/Syapse"
+setwd(path)
+```
+
+**Summary Statistics of each dataset**
+
+Initial understanding of the dataset provides insight into the number of features that are in each dataset and frequency of repeats
+
+```{r echo=FALSE}
+cat("Biomarkers: Number of items:" , dim(biomarkers)[1] , "| Number of features:" , dim(biomarkers)[2])
+cat("\nicds: Number of items:" , dim(icds)[1] , "| Number of features:" , dim(icds)[2])
+cat("\npatients: Number of items:" , dim(patients)[1] , "| Number of features:" , dim(patients)[2])
+cat("\ntherapies: Number of items:" , dim(therapies)[1] , "| Number of features:" , dim(therapies)[2])
+```
+
+Observations: 
+
+*Patients* dataset seems to be the only dataset that has a unique set of patient ids. All other datasets have some frequency of repeat entries for the same patient.
+
+Patient Id seems to be the only feature that is common among all of the datasets.
+
+*Icds* & *therapies* share both patient id, diag code, and diag group features
+
+```{r}
+# Dimensions of the data set 
+summary(biomarkers)
+summary(icds)
+summary(patients)
+summary(therapies)
+```
+Takeaways:
+
+**Task 1:**
+Total amount of patients in the population is 64,000, but not all of these patients have genetic data. The limitation towards characterizing based on genetic background is the amount of patients in the *biomarkers* dataset, which has ~9000 unique patients.
+
+**Task 2: **
+Datasets that provide clinical data are *icds* and *therapies* and these only contain a fraction of the patients.
+
+# Checking quality of data
+
+```{r}
+any(is.na(biomarkers))
+any(is.na(icds))
+any(is.na(patients))
+any(is.na(therapies))
+
+```
+
+After looking at the patients dataset, it seems like deceased.dts is the only feature that has NA. This makes sense as it is only filled when is.deceased if True. 
+```{r echo = FALSE}
+head(patients)
+```
+
+Subsetting out biomarker feature as it is specific to the patient and not in scope with the tasks. Furthermore, running each of the datasets to only capture unique values as any duplicates would skew any insight.
+
+```{r}
+biomarker_only <- subset(biomarkers, select = c(id,biomarker))
+biomarkers_new <- subset(biomarkers, select = -c(biomarker)) %>% distinct(id, alteration.type, gene, .keep_all= TRUE)
+icds_new <- icds %>% distinct(id, diag.group, diag.dsc, histo.dsc, diag.code, histo.code, .keep_all= TRUE)
+therapies_new <- therapies %>% distinct(id, med.name, diag.code, diag.group,hist.code, .keep_all= TRUE)
+```
+
+```{r echo= FALSE}
+# Checking to see the features again
+biomarkers_new %>% head()
+icds_new %>% head()
+therapies_new %>% head()
+```
+## Task 1: Characterizing the population genetically 
+
+Merging patients and biomarkers provides more data into patients that have genetic data
+```{r}
+biomarkers_patient <- merge(patients, biomarkers_new, by = c("id"))
+```
+
+After the screen for unique entries and dropping biomakers this provides us with half of the original dataset
+```{r}
+dim(biomarkers_patient)
+```
+
+
+
+Visualizing the frequency of genes in the population.
+The graph below is based on a log scale to improve visualization and was split between the patients decease status 
+One can see that the top 4 genes that most patients in the population have are KDR, TP53, KRAS, and TET2. 
+
+- Patients with genes GNQA, SRSF2, or JAK2 are all alive
+- Patients with HNF1A and KMT2A are all deceased
+
+There seems to be more patients in the population with the genes EGFR or IDH1 alive than deceased than other genes
+At the bottom of the graph shows genes that had such small numbers that were interpreted with a zero.
+```{r fig.height = 10, fig.width = 12}
+y = count(biomarkers_patient, c("gene", "is.deceased"))
+y$freq <- log(y$freq)
+ggplot(y, aes(x = reorder(gene, freq), y = freq, fill = is.deceased)) +
+  geom_bar(stat = "identity", position = "identity", alpha = 0.7) + 
+  coord_flip() +
+  xlab("Gene") +
+  ylab("Log(Number of patients)") +
+  scale_fill_discrete(name = "Deceased")
+```
+Breaking down the alteration type within the population does show that the majority of the genes have a biomaker obtained under a substitution alteration. 
+
+There isn't much of a difference between alternations type in regards to deceased status. But EGFR Does have a big difference in that there are many patients that are alive with a deletion biomarker. TYMS is also different from all other genes in that all of the biomarkers in that gene are obtained under deletion.
+
+```{r fig.height = 10, fig.width = 15}
+
+y = count(biomarkers_patient, c("gene", "alteration.type", "is.deceased"))
+
+ggplot(data = y, aes(y = freq, x = gene, fill = alteration.type)) +
+  geom_bar(color = "gray", stat = "identity") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  coord_flip() +
+  facet_grid(. ~ is.deceased) +
+  xlab("Gene") +
+  ylab("Count of Patients") +
+  scale_fill_discrete(name = "Alteration Type")
+
+```
+
+## Task 2: Clinical Relavance
+
+Picking a subset of this population to get a clinically relevant implication would require usage of the *therapies* and *icds* dataset
+Icds provides the diagnosis while the therapies provide treatment data. 
+
+```{r}
+# switching the column names of the therapies as there are fluctuation between the features even though they contain the same data
+# diag.dsc on icds matches with therapies diag.group
+
+colnames(therapies_new) <- c("id","med.name", "diag.group", "diag.code","hist.code")
+colnames(icds_new) <- c("id","diag.dsc", "diag.group", "histo.dsc","diag.code","hist.code")
+icds_therapies <- merge(therapies_new, icds_new, by = c("id", "diag.group", "hist.code"))
+
+```
+
+```{r}
+# Merging the icds and therapies datasets
+icds_therapies_pat <- merge(icds_therapies, patients, by = c("id"))
+icds_therapies_pat %>% head()
+
+# Merging icds and patient dataset
+icds_pat <- merge(icds_new, patients, by = c("id"))
+icds_pat %>% head()
+```
+
+The two charts below show the differences between a subset of the population of just patients with a diagnosis and those with a diagnosis and a treatment.
+There doesn't seem to be much difference between the two.
+
+```{r}
+ggplot(data = icds_pat, aes(x = diag.group)) +
+  geom_bar() +
+  coord_flip() + 
+  facet_grid(. ~ is.deceased) +
+  xlab("Diagnosis Group") +
+  ylab("Count of Patients")
+```
+
+
+```{r}
+icds_pat_therapies_only <- icds_therapies_pat[c("id", "diag.group","is.deceased","histo.dsc")] %>% distinct(id, diag.group,is,deceased, .keep_all= TRUE)
+
+ggplot(data = icds_pat_therapies_only, aes(x = diag.group)) +
+  geom_bar() +
+  coord_flip() + 
+  facet_grid(. ~ is.deceased) +
+  xlab("Diagnosis Group") +
+  ylab("Count of Patients")
+```
+
+Vizualizing the distribution of the treatment in regards to the diagnosis location and deceased status
+
+We can see patients in the population that have treatment to the lungs are still alive compared to patients that have had many forms of treatment for pancreas or cecum cancer
+
+
+```{r fig.width= 10}
+ggplot(data = icds_therapies_pat, aes(x = diag.group, fill = med.name)) +
+  geom_bar(color = "white") +
+  coord_flip() + 
+  facet_grid(. ~ is.deceased) +
+  xlab("Diagnosis Group") +
+  ylab("Count of Patients") +
+  scale_fill_discrete(name = "Treatment")
+  
+```
+
+The following chart shows that Fluorine-18 Flurodexoyglucose is the most common treatment among majority of the group. All patients with Mucinous adenocarcinoma and treated with this were deceased compared to those without. 
+
+```{r fig.height = 6, fig.width = 10}
+ggplot(data = icds_therapies_pat, aes(x = med.name, col = histo.dsc, y = id)) +
+  geom_point(size = 5) +
+  coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  facet_grid(. ~ is.deceased) +
+  xlab("Treatment") +
+  ylab("Patient")
+```
+
+##Insights:
+
+Clinical Relavance:
+
+- Most patients with breast/lung cacner are not deceased compared to those patients with pancreas/cecum cancer
+- Half of the patients who are deceased underwent 2-3x more treatments than patients who are still alive.
+- Fluorine-18 Flurodeoxyglucose is the most commonly used treatment among patients as well as cancer types
+
+##Limitations: 
+
+-	Small number of entries in both therapies and icds in comparison to the number in patient and biomarker dataset
+  - Any form of analysis will be compounded in its statistical significance since an implication could just be from chance.
+  - Given the small number, it could not be considered representative of the population.
+  - Hard to make a confident insight when the largest frequency of any treatment or diagnosis was around 3-4
+-	The data sets could not be merged together confidently
+  -	Biomarkers which has the only genetic data did not have any other attributes to full link to icds or therapies. This is vital in that without it any extrapolation will be based on assumptions vs certainty
+  -	I.e. It is not 100% known if the gene was a characteristic of the patient when they were getting a particular medical treatment.
+
+##Area for Exploration: 
+-	See therapy distributions at either deceased year or at the year of treatment
+  - Time date from therapies needed
+-	Potentially seeing if there are any patients with matching biomarkers in the general population with those of current therapy patients
+  -	Would need to link biomarkers with treatment 
+-	Breakdown of treatment in seeing if the dosage has impact towards deceased rate
+  - More data to have a large enough quantity/pool to make a statisical signifance
+- Breakup biomarker string to get more analysis on genome data for further characterization 
+  - More time as to forumlate a strategy to sort out the different alternation types 
