@@ -14,6 +14,8 @@ This portfolio is a compilation of notebooks which I created for data analysis o
 
 
 ### Data Exploration and Analysis
+[EDA on some mock patient data](https://efawe.github.io/Sypase_Scenario/)
+
 
 ### Clustering
 
